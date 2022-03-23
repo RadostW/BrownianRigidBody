@@ -34,24 +34,32 @@ def rotation_matrix(q):
 
 
 def transformation_matrix(q):
-    # Compare with equation: Evensen2008.12
+    # Compare with equation: Evensen2008.12 - there are typos!
+    # Compare with equation: Ilie2014.A9-A10 - no typos there
     unsafephi = jnp.sqrt(jnp.sum(q ** 2))
     phi = jnp.maximum(unsafephi, jnp.array(0.01))
 
-    scale1 = jnp.where(
+    # scale1 = jnp.where(
+    #    phi == unsafephi,
+    #    (1.0 / phi ** 2 - (jnp.sin(phi) / (2.0 * phi * (1.0 - jnp.cos(phi))))),
+    #    1.0 / 12,
+    # )
+
+    # scale2 = jnp.where(
+    #    phi == unsafephi, (phi * jnp.sin(phi) / (1.0 - jnp.cos(phi))), 2.0
+    # )
+
+    # TODO: fix small angle values
+    c = jnp.where(
         phi == unsafephi,
-        (1.0 / phi ** 2 - (jnp.sin(phi) / (2.0 * phi * (1.0 - jnp.cos(phi))))),
+        phi * jnp.sin(phi) / (1.0 - jnp.cos(phi)),
         1.0 / 12,
     )
 
-    scale2 = jnp.where(
-        phi == unsafephi, (phi * jnp.sin(phi) / (1.0 - jnp.cos(phi))), 2.0
-    )
-
-    trans = 0.5 * (
-        scale1 * q.reshape(1, 3) * q.reshape(3, 1)
-        + spin_matrix(q)
-        + scale2 * jnp.eye(3)
+    trans = (
+        ((1.0 - 0.5 * c) / (phi ** 2)) * q.reshape(1, 3) * q.reshape(3, 1)
+        + 0.5 * spin_matrix(q)
+        + 0.5 * c * jnp.eye(3)
     )
 
     return trans
@@ -74,7 +82,13 @@ def metric_force(q):
 def t_mobility(q):
     # Mobility matrix transformed to coordinates.
     # Compare with equation: Evensen2008.2
-    return transformation_matrix(q) @ mobility @ (transformation_matrix(q).T)
+    return (
+        transformation_matrix(q)
+        @ (rotation_matrix(q).T)
+        @ mobility
+        @ rotation_matrix(q)
+        @ (transformation_matrix(q).T)
+    )
 
 
 def drift(q):
@@ -107,7 +121,7 @@ def canonicalize_coordinates(q):
 
 
 problem = pychastic.sde_problem.SDEProblem(
-    drift, noise, tmax=2.0, x0=jnp.array([0.0, 0.0, 0.00001])
+    drift, noise, tmax=2.0, x0=jnp.array([0.0, 1.0, 2.0])
 )
 
 
@@ -121,7 +135,11 @@ trajectories = solver.solve_many(
     chunks_per_randomization=2,
 )
 
+
 rotation_matrices = jax.vmap(jax.vmap(rotation_matrix))(trajectories["solution_values"])
+rotation_matrices = jnp.einsum(
+    "ij,abjk", (rotation_matrix(problem.x0).T), rotation_matrices
+)
 
 epsilon_tensor = jnp.array(
     [
@@ -135,15 +153,18 @@ delta_u = -0.5 * jnp.einsum("kij,abij->abk", epsilon_tensor, rotation_matrices)
 
 cor = jnp.mean(delta_u ** 2, axis=0)
 
-
 t_a = trajectories["time_values"][0]
+t_t = jnp.arange(0.0, trajectories["time_values"][0][-1], 0.005)
 plt.plot(t_a, cor[:, 0])
+plt.plot(t_a, cor[:, 1])
+plt.plot(t_a, cor[:, 2])
+
 D = 1.0
 plt.plot(
-    t_a,
+    t_t,
     1.0 / 6.0
-    - (5.0 / 12.0) * jnp.exp(-6.0 * D * t_a)
-    + (1.0 / 4.0) * jnp.exp(-2.0 * D * t_a),
+    - (5.0 / 12.0) * jnp.exp(-6.0 * D * t_t)
+    + (1.0 / 4.0) * jnp.exp(-2.0 * D * t_t),
     label="theoretical",
 )
 
