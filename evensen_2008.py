@@ -30,13 +30,13 @@ def rotation_matrix(q):
         + jnp.cos(phi) * jnp.eye(3)
         + ((1.0 - jnp.cos(phi)) / phi ** 2) * q.reshape(1, 3) * q.reshape(3, 1)
     )
-    
+
     return jnp.where(
-    	phi == unsafephi,
-    	rot,
-    	jnp.cos(unsafephi) * jnp.eye(3)
-    	+ spin_matrix(q)
-    	+ 0.5 * q.reshape(1, 3) * q.reshape(3, 1)
+        phi == unsafephi,
+        rot,
+        jnp.cos(unsafephi) * jnp.eye(3)
+        + spin_matrix(q)
+        + 0.5 * q.reshape(1, 3) * q.reshape(3, 1),
     )
 
 
@@ -46,36 +46,17 @@ def transformation_matrix(q):
     unsafephi = jnp.sqrt(jnp.sum(q ** 2))
     phi = jnp.maximum(unsafephi, jnp.array(0.01))
 
-    # scale1 = jnp.where(
-    #    phi == unsafephi,
-    #    (1.0 / phi ** 2 - (jnp.sin(phi) / (2.0 * phi * (1.0 - jnp.cos(phi))))),
-    #    1.0 / 12,
-    # )
-
-    # scale2 = jnp.where(
-    #    phi == unsafephi, (phi * jnp.sin(phi) / (1.0 - jnp.cos(phi))), 2.0
-    # )
-
-    # TODO: fix small angle values
     c = phi * jnp.sin(phi) / (1.0 - jnp.cos(phi))
 
     trans = jnp.where(
-    	phi == unsafephi,
+        phi == unsafephi,
         ((1.0 - 0.5 * c) / (phi ** 2)) * q.reshape(1, 3) * q.reshape(3, 1)
         + 0.5 * spin_matrix(q)
         + 0.5 * c * jnp.eye(3),
-        (1.0 / 12.0) *  q.reshape(1, 3) * q.reshape(3, 1)
+        (1.0 / 12.0) * q.reshape(1, 3) * q.reshape(3, 1)
         + 0.5 * spin_matrix(q)
-        + jnp.eye(3)
+        + jnp.eye(3),
     )
-    
-#     trans = jnp.where(
-#    	 phi == unsafephi,
-#        ((1.0 - 0.5 * c) / (phi ** 2)) * q.reshape(1, 3) * q.reshape(3, 1)
-#        + 0.5 * spin_matrix(q)
-#        + 0.5 * c * jnp.eye(3),
-#        jnp.eye(3)
-#    )
 
     return trans
 
@@ -136,17 +117,17 @@ def canonicalize_coordinates(q):
 
 
 problem = pychastic.sde_problem.SDEProblem(
-    drift, noise, tmax=0.5, x0=jnp.array([1E-19, 0.0, 0.0])
+    drift, noise, tmax=2.0, x0=jnp.array([1.0, 2.0, 0.0])
 )
 
 
-solver = pychastic.sde_solver.SDESolver(dt=0.01, scheme="euler")
+solver = pychastic.sde_solver.SDESolver(dt=0.1, scheme="euler")
 
 trajectories = solver.solve_many(
     problem,
     step_post_processing=canonicalize_coordinates,
     n_trajectories=10000,
-    chunk_size=8,
+    chunk_size=1,
     chunks_per_randomization=2,
 )
 
@@ -184,4 +165,3 @@ plt.plot(
 )
 
 plt.show()
-#plt.savefig('du.png')
