@@ -22,8 +22,9 @@ def spin_matrix(q):
 
 def rotation_matrix(q):
     # Compare with equation: Evensen2008.11
-    unsafephi = jnp.sqrt(jnp.sum(q ** 2))
-    phi = jnp.maximum(unsafephi, jnp.array(0.01))
+    unsafe_phi_squared = jnp.sum(q ** 2)
+    phi_squared = jnp.maximum(unsafe_phi_squared, jnp.array(0.01) ** 2)
+    phi = jnp.sqrt(phi_squared)
 
     rot = (
         (jnp.sin(phi) / phi) * spin_matrix(q)
@@ -32,9 +33,9 @@ def rotation_matrix(q):
     )
 
     return jnp.where(
-        phi == unsafephi,
+        phi_squared == unsafe_phi_squared,
         rot,
-        jnp.cos(unsafephi) * jnp.eye(3)
+        (1.0 - 0.5 * unsafe_phi_squared) * jnp.eye(3)
         + spin_matrix(q)
         + 0.5 * q.reshape(1, 3) * q.reshape(3, 1),
     )
@@ -43,13 +44,14 @@ def rotation_matrix(q):
 def transformation_matrix(q):
     # Compare with equation: Evensen2008.12 - there are typos!
     # Compare with equation: Ilie2014.A9-A10 - no typos there
-    unsafephi = jnp.sqrt(jnp.sum(q ** 2))
-    phi = jnp.maximum(unsafephi, jnp.array(0.01))
+    unsafe_phi_squared = jnp.sum(q ** 2)
+    phi_squared = jnp.maximum(unsafe_phi_squared, jnp.array(0.01) ** 2)
+    phi = jnp.sqrt(phi_squared)
 
     c = phi * jnp.sin(phi) / (1.0 - jnp.cos(phi))
 
     trans = jnp.where(
-        phi == unsafephi,
+        phi_squared == unsafe_phi_squared,
         ((1.0 - 0.5 * c) / (phi ** 2)) * q.reshape(1, 3) * q.reshape(3, 1)
         + 0.5 * spin_matrix(q)
         + 0.5 * c * jnp.eye(3),
@@ -117,7 +119,7 @@ def canonicalize_coordinates(q):
 
 
 problem = pychastic.sde_problem.SDEProblem(
-    drift, noise, tmax=2.0, x0=jnp.array([1.0, 2.0, 0.0])
+    drift, noise, tmax=2.0, x0=jnp.array([0.0, 0.0, 0.0])
 )
 
 
