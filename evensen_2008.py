@@ -30,7 +30,14 @@ def rotation_matrix(q):
         + jnp.cos(phi) * jnp.eye(3)
         + ((1.0 - jnp.cos(phi)) / phi ** 2) * q.reshape(1, 3) * q.reshape(3, 1)
     )
-    return jnp.where(phi == unsafephi, rot, 1.0 * jnp.eye(3) + spin_matrix(q))
+    
+    return jnp.where(
+    	phi == unsafephi,
+    	rot,
+    	jnp.cos(unsafephi) * jnp.eye(3)
+    	+ spin_matrix(q)
+    	+ 0.5 * q.reshape(1, 3) * q.reshape(3, 1)
+    )
 
 
 def transformation_matrix(q):
@@ -50,17 +57,25 @@ def transformation_matrix(q):
     # )
 
     # TODO: fix small angle values
-    c = jnp.where(
-        phi == unsafephi,
-        phi * jnp.sin(phi) / (1.0 - jnp.cos(phi)),
-        1.0 / 12,
-    )
+    c = phi * jnp.sin(phi) / (1.0 - jnp.cos(phi))
 
-    trans = (
+    trans = jnp.where(
+    	phi == unsafephi,
         ((1.0 - 0.5 * c) / (phi ** 2)) * q.reshape(1, 3) * q.reshape(3, 1)
         + 0.5 * spin_matrix(q)
-        + 0.5 * c * jnp.eye(3)
+        + 0.5 * c * jnp.eye(3),
+        (1.0 / 12.0) *  q.reshape(1, 3) * q.reshape(3, 1)
+        + 0.5 * spin_matrix(q)
+        + jnp.eye(3)
     )
+    
+#     trans = jnp.where(
+#    	 phi == unsafephi,
+#        ((1.0 - 0.5 * c) / (phi ** 2)) * q.reshape(1, 3) * q.reshape(3, 1)
+#        + 0.5 * spin_matrix(q)
+#        + 0.5 * c * jnp.eye(3),
+#        jnp.eye(3)
+#    )
 
     return trans
 
@@ -95,6 +110,8 @@ def drift(q):
     # Drift term.
     # Compare with equation: Evensen2008.5
     # jax.jacobian has differentiation index last (like mu_ij d_k) so divergence is contraction of first and last axis.
+    print(jax.jacobian(rotation_matrix)(q))
+    print(jax.jacobian(transformation_matrix)(q))
     return t_mobility(q) @ metric_force(q) + jnp.einsum(
         "iji->j", jax.jacobian(t_mobility)(q)
     )
@@ -121,7 +138,7 @@ def canonicalize_coordinates(q):
 
 
 problem = pychastic.sde_problem.SDEProblem(
-    drift, noise, tmax=2.0, x0=jnp.array([0.0, 1.0, 2.0])
+    drift, noise, tmax=0.5, x0=jnp.array([1E-19, 0.0, 0.0])
 )
 
 
@@ -169,3 +186,4 @@ plt.plot(
 )
 
 plt.show()
+#plt.savefig('du.png')
