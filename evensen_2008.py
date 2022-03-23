@@ -110,8 +110,6 @@ def drift(q):
     # Drift term.
     # Compare with equation: Evensen2008.5
     # jax.jacobian has differentiation index last (like mu_ij d_k) so divergence is contraction of first and last axis.
-    print(jax.jacobian(rotation_matrix)(q))
-    print(jax.jacobian(transformation_matrix)(q))
     return t_mobility(q) @ metric_force(q) + jnp.einsum(
         "iji->j", jax.jacobian(t_mobility)(q)
     )
