@@ -11,7 +11,7 @@ import jax
 import matplotlib.pyplot as plt
 import numpy as np
 
-mobility = jnp.eye(6)
+mobility = jnp.diag(jnp.array([.258342,.229993,.229993,.554606,.267374,.267374]))
 mobility_d = jnp.linalg.cholesky(mobility)  # Compare with equation: Evensen2008.6
 
 
@@ -146,11 +146,11 @@ def canonicalize_coordinates(xq):
 
 # Stating the problem and solving its SDEs
 problem = pychastic.sde_problem.SDEProblem(
-    drift, noise, tmax=0.5, x0=jnp.array([1.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+    drift, noise, tmax=2.0, x0=jnp.array([1.0, 0.0, 1.0, 0.001, 0.0, 0.0])
 )
 
 
-solver = pychastic.sde_solver.SDESolver(dt=0.001, scheme="euler")
+solver = pychastic.sde_solver.SDESolver(dt=0.002, scheme="euler")
 
 trajectories = solver.solve_many(
     problem,
@@ -183,17 +183,29 @@ r_cor = jnp.mean(delta_u ** 2, axis=0)
 
 plt.figure(0)
 
-plt.plot(t_n, r_cor[:, 0], label = "00-coeff")
-plt.plot(t_n, r_cor[:, 1], label = "11-coeff")
-plt.plot(t_n, r_cor[:, 2], label = "22-coeff")
+plt.plot(t_n, r_cor[:, 0], label = "00-num.")
+plt.plot(t_n, r_cor[:, 1], label = "11-num.")
+plt.plot(t_n, r_cor[:, 2], label = "22-num.")
 
-D = 1.0
+D1 = mobility[5,5]
+D3 = mobility[3,3]
+
 plt.plot(
     t_t,
     1.0 / 6.0
-    - (5.0 / 12.0) * jnp.exp(-6.0 * D * t_t)
-    + (1.0 / 4.0) * jnp.exp(-2.0 * D * t_t),
-    label="theoretical",
+    + (1.0 / 12.0) * jnp.exp(-6.0 * D1 * t_t)
+    - (1.0 / 2.0) * jnp.exp(-(2.0 * D1 + 4.0 * D3) * t_t)
+    + (1.0 / 4.0) * jnp.exp(-2.0 * D1 * t_t),
+    label="00-theor.",
+)
+
+plt.plot(
+    t_t,
+    1.0 / 6.0
+    - (1.0 / 6.0) * jnp.exp(-6.0 * D1 * t_t)
+    - (1.0 / 4.0) * jnp.exp(-(5.0 * D1 + D3) * t_t)
+    + (1.0 / 4.0) * jnp.exp(-(D1 + D3) * t_t),
+    label="11,22-theor.",
 )
 
 plt.title("$<\Delta u(t) \Delta u(t)>_0$")
@@ -203,7 +215,6 @@ plt.savefig("dudu.png")
 
 # Translational-translational correlations.
 # Compare with equation: Cichocki2015.57
-
 x_0 = jnp.swapaxes(
     jnp.full(
         (len(t_n), trajectories["solution_values"].shape[0], 3),
@@ -216,14 +227,26 @@ delta_R = trajectories["solution_values"][:,:,:3] - x_0
 t_cor = jnp.mean(delta_R ** 2, axis = 0)
 
 plt.figure(1)
-plt.plot(t_n, t_cor[:, 0], label = "00-coeff")
-plt.plot(t_n, t_cor[:, 1], label = "11-coeff")
-plt.plot(t_n, t_cor[:, 2], label = "22-coeff")
+plt.plot(t_n, t_cor[:, 0], label = "00-num.")
+plt.plot(t_n, t_cor[:, 1], label = "11-num.")
+plt.plot(t_n, t_cor[:, 2], label = "22-num.")
+
+D3 = mobility[0,0]
+D1 = mobility[2,2]
+D = (2.0 * D1 + D3)/3.0
 
 plt.plot(
     t_t,
-    2 * D * t_t,
-    label = "theoretical"
+    2.0 * D * t_t
+    + 2.0 * (1.0 - jnp.exp(-6.0 * D1 * t_t)) * (D1 - D3) / (18.0 * D1),
+    label = "00-theor."
+)
+
+plt.plot(
+    t_t,
+    2.0 * D * t_t
+    - 2.0 * (1.0 - jnp.exp(-6.0 * D1 * t_t)) * (D1 - D3) / (9.0 * D1),
+    label = "11,22-theor."
 )
 
 plt.title("$<\Delta R(t) \Delta R(t)>_0$")
@@ -233,14 +256,13 @@ plt.savefig("dRdR.png")
 
 # Translational-rotational correlations.
 # Compare with equation: Cichocki2015.81
-
 delta_u_delta_R = delta_u * delta_R
 tr_cor = jnp.mean(delta_u_delta_R, axis = 0)
 
 plt.figure(2)
-plt.plot(t_n, tr_cor[:, 0], label = "00-coeff")
-plt.plot(t_n, tr_cor[:, 1], label = "11-coeff")
-plt.plot(t_n, tr_cor[:, 2], label = "22-coeff")
+plt.plot(t_n, tr_cor[:, 0], label = "00-num.")
+plt.plot(t_n, tr_cor[:, 1], label = "11-num.")
+plt.plot(t_n, tr_cor[:, 2], label = "22-num.")
 
 plt.plot(
     t_t,
