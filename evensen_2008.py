@@ -5,6 +5,12 @@
 # Macromol. Theory Simul. (2008)
 # doi:10.1002/mats.200800031
 
+# Theoretical correlations published in:
+# "Brownian motion of a particle with arbitrary shape"
+# B. Cichocki, M. L. Ekiel-Jezewska & E. Wajnryb
+# J. Chem-Phys (2015)
+# doi:10.1063/1.4921729
+
 import pychastic
 import jax.numpy as jnp
 import jax
@@ -36,10 +42,14 @@ def rotation_matrix(xq):
         + spin_matrix(q)
         + 0.5 * q.reshape(1, 3) * q.reshape(3, 1),
     )
-    
+
     return jnp.concatenate(
-    	(jnp.concatenate((rot, jnp.zeros((3,3))), axis=1),
-	jnp.concatenate((jnp.zeros((3,3)), rot), axis=1)), axis=0)
+        (
+            jnp.concatenate((rot, jnp.zeros((3, 3))), axis=1),
+            jnp.concatenate((jnp.zeros((3, 3)), rot), axis=1),
+        ),
+        axis=0,
+    )
 
 
 def rotation_matrix_r(q):
@@ -57,9 +67,9 @@ def rotation_matrix_r(q):
         + spin_matrix(q)
         + 0.5 * q.reshape(1, 3) * q.reshape(3, 1),
     )
-    
+
     return rot
-    
+
 
 def transformation_matrix(xq):
     # Compare with equation: Evensen2008.12 - there are typos!
@@ -82,8 +92,12 @@ def transformation_matrix(xq):
     )
 
     return jnp.concatenate(
-    	(jnp.concatenate((jnp.eye(3), jnp.zeros((3,3))), axis=1),
-	jnp.concatenate((jnp.zeros((3,3)), trans), axis=1)), axis=0)
+        (
+            jnp.concatenate((jnp.eye(3), jnp.zeros((3, 3))), axis=1),
+            jnp.concatenate((jnp.zeros((3, 3)), trans), axis=1),
+        ),
+        axis=0,
+    )
 
 
 def metric_force(xq):
@@ -99,8 +113,8 @@ def metric_force(xq):
     )
 
     force = jnp.where(phi == unsafephi, (q / phi) * scale, jnp.array([0.0, 0.0, 0.0]))
-    
-    return jnp.concatenate((jnp.zeros(3), force), axis = None)
+
+    return jnp.concatenate((jnp.zeros(3), force), axis=None)
 
 
 def t_mobility(xq):
@@ -127,7 +141,9 @@ def drift(xq):
 def noise(xq):
     # Noise term.
     # Compare with equation: Evensen2008.5
-    return jnp.sqrt(2) * transformation_matrix(xq) @ (rotation_matrix(xq).T) @ mobility_d
+    return (
+        jnp.sqrt(2) * transformation_matrix(xq) @ (rotation_matrix(xq).T) @ mobility_d
+    )
 
 
 def canonicalize_coordinates(xq):
@@ -141,8 +157,9 @@ def canonicalize_coordinates(xq):
     q = jax.lax.select(
         phi > max_phi, (canonical_phi / phi) * q, q  # and phi == unsafephi
     )
-    
-    return jnp.concatenate((xq[:3],q), axis=None)
+
+    return jnp.concatenate((xq[:3], q), axis=None)
+
 
 # Stating the problem and solving its SDEs
 problem = pychastic.sde_problem.SDEProblem(
@@ -165,7 +182,9 @@ t_t = jnp.arange(0.0, trajectories["time_values"][0][-1], 0.005)
 
 # Rotational-rotational correlations.
 # Compare with equation: Cichocki2015.71
-rotation_matrices = jax.vmap(jax.vmap(rotation_matrix_r))(trajectories["solution_values"][:,:,3:])
+rotation_matrices = jax.vmap(jax.vmap(rotation_matrix_r))(
+    trajectories["solution_values"][:, :, 3:]
+)
 rotation_matrices = jnp.einsum(
     "ij,abjk", (rotation_matrix_r(problem.x0[3:]).T), rotation_matrices
 )
@@ -183,9 +202,9 @@ r_cor = jnp.mean(delta_u ** 2, axis=0)
 
 plt.figure(0)
 
-plt.plot(t_n, r_cor[:, 0], label = "00-coeff")
-plt.plot(t_n, r_cor[:, 1], label = "11-coeff")
-plt.plot(t_n, r_cor[:, 2], label = "22-coeff")
+plt.plot(t_n, r_cor[:, 0], label="00-coeff")
+plt.plot(t_n, r_cor[:, 1], label="11-coeff")
+plt.plot(t_n, r_cor[:, 2], label="22-coeff")
 
 D = 1.0
 plt.plot(
@@ -205,26 +224,20 @@ plt.savefig("dudu.png")
 # Compare with equation: Cichocki2015.57
 
 x_0 = jnp.swapaxes(
-    jnp.full(
-        (len(t_n), trajectories["solution_values"].shape[0], 3),
-        problem.x0[:3]
-    ),
-    0, 1
-    )
+    jnp.full((len(t_n), trajectories["solution_values"].shape[0], 3), problem.x0[:3]),
+    0,
+    1,
+)
 
-delta_R = trajectories["solution_values"][:,:,:3] - x_0
-t_cor = jnp.mean(delta_R ** 2, axis = 0)
+delta_R = trajectories["solution_values"][:, :, :3] - x_0
+t_cor = jnp.mean(delta_R ** 2, axis=0)
 
 plt.figure(1)
-plt.plot(t_n, t_cor[:, 0], label = "00-coeff")
-plt.plot(t_n, t_cor[:, 1], label = "11-coeff")
-plt.plot(t_n, t_cor[:, 2], label = "22-coeff")
+plt.plot(t_n, t_cor[:, 0], label="00-coeff")
+plt.plot(t_n, t_cor[:, 1], label="11-coeff")
+plt.plot(t_n, t_cor[:, 2], label="22-coeff")
 
-plt.plot(
-    t_t,
-    2 * D * t_t,
-    label = "theoretical"
-)
+plt.plot(t_t, 2 * D * t_t, label="theoretical")
 
 plt.title("$<\Delta R(t) \Delta R(t)>_0$")
 plt.legend()
@@ -235,22 +248,16 @@ plt.savefig("dRdR.png")
 # Compare with equation: Cichocki2015.81
 
 delta_u_delta_R = delta_u * delta_R
-tr_cor = jnp.mean(delta_u_delta_R, axis = 0)
+tr_cor = jnp.mean(delta_u_delta_R, axis=0)
 
 plt.figure(2)
-plt.plot(t_n, tr_cor[:, 0], label = "00-coeff")
-plt.plot(t_n, tr_cor[:, 1], label = "11-coeff")
-plt.plot(t_n, tr_cor[:, 2], label = "22-coeff")
+plt.plot(t_n, tr_cor[:, 0], label="00-coeff")
+plt.plot(t_n, tr_cor[:, 1], label="11-coeff")
+plt.plot(t_n, tr_cor[:, 2], label="22-coeff")
 
-plt.plot(
-    t_t,
-    0 * t_t,
-    label = "theoretical"
-)
+plt.plot(t_t, 0 * t_t, label="theoretical")
 
 plt.title("$<\Delta u(t) \Delta R(t)>_0$")
 plt.legend()
 
 plt.savefig("dudR.png")
-
-
