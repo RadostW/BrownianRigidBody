@@ -37,7 +37,7 @@ p_E.close()
 plt.figure(0)
 
 plt.hist(phis, bins = 20, range = (0, np.pi), edgecolor = "c", density = True,
-    fill = False, label = "Waszkiewicz et al. [2022]", linewidth = 3.0)
+    color = "c", label = "Waszkiewicz et al. [2022]", linewidth = 3.0)
 plt.hist(phis_E, bins = 20, range = (0, np.pi), edgecolor = "g", density = True,
     fill = False, label = "Evensen et al. [2008]", linewidth = 3.0)
 
